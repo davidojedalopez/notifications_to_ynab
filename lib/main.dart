@@ -1,10 +1,15 @@
 import 'dart:ffi';
+import 'dart:io' as io;
 import 'dart:isolate';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:sqflite/sqflite.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:tuple/tuple.dart';
 
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 
@@ -39,6 +44,7 @@ class NotificationsLog extends StatefulWidget {
 class _NotificationsLogState extends State<NotificationsLog> {
   List<NotificationEvent> _log = [];
   List<NotificationEvent> _processableNotifications = [];
+  List<String> _processablePackages = ["com.nu.production"];
   bool started = false;
   bool _loading = false;
 
@@ -80,19 +86,31 @@ class _NotificationsLogState extends State<NotificationsLog> {
     });
   }
 
-  void onData(NotificationEvent event) {
-    var processablePackages = ["com.nu.production"];
+  void onData(NotificationEvent event) async {
+    bool shouldProcess = shouldProcessNotification(event);
+
+    final id = await insertNotification(event, shouldProcess);
+    print("INSERTED NOTIFICATION ID $id");
+
+    var docDirectory = await getApplicationDocumentsDirectory();
+    print(docDirectory);
+
+    if (shouldProcess) {
+      _processableNotifications.add(event);
+
+      processNotification(event, id);
+    }
+
     setState(() {
       _log.add(event);
-      if (processablePackages.contains(event.packageName)) {
-        _processableNotifications.add(event);
-        processNotification(event);
-      }
     });
 
     print("**************");
     print(event.toString());
   }
+
+  bool shouldProcessNotification(NotificationEvent event) =>
+      _processablePackages.contains(event.packageName);
 
   void startListening() async {
     print("start listening");
@@ -214,45 +232,145 @@ class _NotificationsLogState extends State<NotificationsLog> {
     return place;
   }
 
-  Future<http.Response> createTransaction(
+  Tuple2<Future<http.Response>, String> createTransaction(
       int multipliedAmount, String place, String date) {
-    return http.post(
-        Uri.parse(
-            "https://api.ynab.com/v1/budgets/72bd251c-4676-43d1-b48f-2c77886108c4/transactions"),
-        headers: {
-          "Authorization": "Bearer 0SYXrq5cWchr5Wf_W1QKXuCgBwjPSPgfHkmUQKFS7t0",
-          "Content-Type": "application/json"
-        },
-        body: jsonEncode({
-          "transaction": {
-            "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
-            "date": date,
-            "amount": multipliedAmount,
-            "payee_name": place,
-            "memo": "automatically added"
-          }
-        }));
+    final requestBody = {
+      "transaction": {
+        "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
+        "date": date,
+        "amount": multipliedAmount,
+        "payee_name": place,
+        "memo": "automatically added"
+      }
+    };
+    return Tuple2(
+        http.post(
+            Uri.parse(
+                "https://api.ynab.com/v1/budgets/72bd251c-4676-43d1-b48f-2c77886108c4/transactions"),
+            headers: {
+              "Authorization":
+                  "Bearer 0SYXrq5cWchr5Wf_W1QKXuCgBwjPSPgfHkmUQKFS7t0",
+              "Content-Type": "application/json"
+            },
+            body: jsonEncode(requestBody)),
+        jsonEncode(requestBody));
   }
 
-  void processNotification(NotificationEvent event) {
+  void processNotification(NotificationEvent event, int notificationId) {
     if (event.title?.startsWith("Compra aprobada") ?? false) {
       final amount = getAmountFromNotification(event);
       final payee = getPayeeFromNotification(event);
       final date = getDateFromNotification(event);
 
-      createTransaction(amount, payee, date).then((response) {
+      final transactionResult = createTransaction(amount, payee, date);
+      transactionResult.item1.then((response) {
         if (response.statusCode == 200) {
           print("HTTP request successful");
+
           var jsonResponse = jsonDecode(response.body);
           print(jsonResponse);
+
+          insertTransaction(notificationId, date, amount, payee,
+              response.statusCode, transactionResult.item2, response.body);
         } else {
           print("HTTP request failed");
           var jsonResponse = jsonDecode(response.body);
           print(jsonResponse);
+
+          insertTransaction(notificationId, date, amount, payee,
+              response.statusCode, transactionResult.item2, response.body);
         }
       }).catchError((error) {
         print("Error making HTTP request: $error");
+
+        insertTransaction(notificationId, date, amount, payee, 500,
+            transactionResult.item2, jsonEncode(error));
       });
     }
   }
+}
+
+/* Database */
+
+class DBHelper {
+  static Database? _db = null;
+
+  Future<Database?> get db async {
+    if (_db != null) {
+      return _db;
+    }
+    _db = await initDatabase();
+    return _db;
+  }
+
+  initDatabase() async {
+    io.Directory docDirectory = await getApplicationDocumentsDirectory();
+
+    String databasePath = path.join(docDirectory.path, 'database.db');
+    print(databasePath);
+    var ourDb =
+        await openDatabase(databasePath, version: 1, onCreate: _onCreate);
+    return ourDb;
+  }
+
+  void _onCreate(Database db, int version) async {
+    // When creating the db, create the table
+    await db.execute(
+        'CREATE TABLE Notification(id INTEGER PRIMARY KEY, title TEXT, text TEXT, package_name TEXT, channel_id TEXT, processed INTEGER, raw_notification_json TEXT)');
+
+    await db.execute(
+        'CREATE TABLE YnabTransactions(id INTEGER PRIMARY KEY, notification_id INTEGER, date TEXT, amount INTEGER, payee TEXT, http_status INTEGER, raw_request_json TEXT, raw_response_json TEXT, FOREIGN KEY(notification_id) REFERENCES Notification(id))');
+  }
+}
+
+Future<int> insertNotification(NotificationEvent evt, bool processed) async {
+  // Get a reference to the database.
+  DBHelper dbHelper = DBHelper();
+  final Database? db = await dbHelper.db;
+
+  // Create a Map with the data you want to insert.
+  Map<String, dynamic> map = {
+    'title': evt.title,
+    'text': evt.text,
+    'package_name': evt.packageName,
+    'channel_id': evt.channelId,
+    'processed': processed ? 1 : 0,
+    'raw_notification_json':
+        jsonEncode(evt.raw.toString()), // convert the event to a JSON string
+  };
+
+  // Insert the Map into the database and get the id of the new record.
+  int id = await db!.insert('Notification', map);
+
+  print("NOTIFICATION INSERTED");
+  return id;
+}
+
+Future<int> insertTransaction(
+    int notificationId,
+    String date,
+    int amount,
+    String payee,
+    int httpStatus,
+    String rawRequestJson,
+    String rawResponseJson) async {
+  // Get a reference to the database.
+  DBHelper dbHelper = DBHelper();
+  final Database? db = await dbHelper.db;
+
+  // Create a Map with the data you want to insert.
+  Map<String, dynamic> map = {
+    'notification_id': notificationId,
+    'date': date,
+    'amount': amount,
+    'payee': payee,
+    'http_status': httpStatus,
+    'raw_request_json': rawRequestJson,
+    'raw_response_json': rawResponseJson,
+  };
+
+  // Insert the Map into the database and get the id of the new record.
+  int id = await db!.insert('Transaction', map);
+
+  return id;
 }
