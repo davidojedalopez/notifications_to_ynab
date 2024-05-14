@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:tuple/tuple.dart';
+import 'package:recase/recase.dart';
 
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 
@@ -162,9 +163,25 @@ class _NotificationsLogState extends State<NotificationsLog> {
         actions: [
           IconButton(
               onPressed: () {
-                print("TODO:");
+                // Create a mock notification
+                NotificationEvent mockNotification = newEvent({
+                  "title": 'Compra aprobada',
+                  "text": 'Compraste en AMAZON con tu tarjeta por \$500.00',
+                  "package_name": "com.nu.production",
+                  "channelId": 'Mock Channel',
+                  "flags": 0,
+                  "canTap": true,
+                  "uid": 10168,
+                  "id": 123,
+                  "isGroup": false,
+                  "key": "0|com.google.android.as|123|null|10168",
+                  "timestamp": 1715641845543,
+                  "hasLargeIcon": false
+                });
+
+                onData(mockNotification);
               },
-              icon: Icon(Icons.settings))
+              icon: Icon(Icons.work))
         ],
       ),
       body: Center(
@@ -239,14 +256,13 @@ class _NotificationsLogState extends State<NotificationsLog> {
         "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
         "date": date,
         "amount": multipliedAmount,
-        "payee_name": place,
+        "payee_name": ReCase(place).titleCase,
         "memo": "automatically added"
       }
     };
     return Tuple2(
         http.post(
-            Uri.parse(
-                "https://api.ynab.com/v1/budgets/72bd251c-4676-43d1-b48f-2c77886108c4/transactions"),
+            Uri.parse("https://api.ynab.com/v1/budgets/last-used/transactions"),
             headers: {
               "Authorization":
                   "Bearer 0SYXrq5cWchr5Wf_W1QKXuCgBwjPSPgfHkmUQKFS7t0",
@@ -264,7 +280,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
       final transactionResult = createTransaction(amount, payee, date);
       transactionResult.item1.then((response) {
-        if (response.statusCode == 200) {
+        if (response.statusCode == 200 || response.statusCode == 201) {
           print("HTTP request successful");
 
           var jsonResponse = jsonDecode(response.body);
@@ -319,7 +335,7 @@ class DBHelper {
         'CREATE TABLE Notification(id INTEGER PRIMARY KEY, title TEXT, text TEXT, package_name TEXT, channel_id TEXT, processed INTEGER, raw_notification_json TEXT)');
 
     await db.execute(
-        'CREATE TABLE YnabTransactions(id INTEGER PRIMARY KEY, notification_id INTEGER, date TEXT, amount INTEGER, payee TEXT, http_status INTEGER, raw_request_json TEXT, raw_response_json TEXT, FOREIGN KEY(notification_id) REFERENCES Notification(id))');
+        'CREATE TABLE YnabTransaction(id INTEGER PRIMARY KEY, notification_id INTEGER, date TEXT, amount INTEGER, payee TEXT, http_status INTEGER, raw_request_json TEXT, raw_response_json TEXT, FOREIGN KEY(notification_id) REFERENCES Notification(id))');
   }
 }
 
@@ -370,7 +386,7 @@ Future<int> insertTransaction(
   };
 
   // Insert the Map into the database and get the id of the new record.
-  int id = await db!.insert('Transaction', map);
+  int id = await db!.insert('YnabTransaction', map);
 
   return id;
 }
