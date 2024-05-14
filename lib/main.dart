@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:tuple/tuple.dart';
 import 'package:recase/recase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 
@@ -184,13 +185,16 @@ class _NotificationsLogState extends State<NotificationsLog> {
               icon: Icon(Icons.work))
         ],
       ),
-      body: Center(
-          child: ListView.builder(
-              itemCount: _log.length,
-              reverse: true,
-              itemBuilder: (BuildContext context, int idx) {
-                final entry = _log[idx];
-                return ListTile(
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: ListView.builder(
+                itemCount: _log.length,
+                reverse: true,
+                itemBuilder: (BuildContext context, int idx) {
+                  final entry = _log[idx];
+                  return ListTile(
                     onTap: () {
                       entry.tap();
                     },
@@ -206,8 +210,15 @@ class _NotificationsLogState extends State<NotificationsLog> {
                           SizedBox(height: 30),
                         ],
                       ),
-                    ));
-              })),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          BearerTokenInput(),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: started ? stopListening : startListening,
         tooltip: 'Start/Stop sensing',
@@ -249,8 +260,13 @@ class _NotificationsLogState extends State<NotificationsLog> {
     return place;
   }
 
+  Future<String> getBearerToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('bearerToken') ?? '';
+  }
+
   Tuple2<Future<http.Response>, String> createTransaction(
-      int multipliedAmount, String place, String date) {
+      int multipliedAmount, String place, String date, String bearerToken) {
     final requestBody = {
       "transaction": {
         "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
@@ -260,25 +276,28 @@ class _NotificationsLogState extends State<NotificationsLog> {
         "memo": "automatically added"
       }
     };
+
     return Tuple2(
         http.post(
             Uri.parse("https://api.ynab.com/v1/budgets/last-used/transactions"),
             headers: {
-              "Authorization":
-                  "Bearer 0SYXrq5cWchr5Wf_W1QKXuCgBwjPSPgfHkmUQKFS7t0",
+              "Authorization": "Bearer $bearerToken",
               "Content-Type": "application/json"
             },
             body: jsonEncode(requestBody)),
         jsonEncode(requestBody));
   }
 
-  void processNotification(NotificationEvent event, int notificationId) {
+  Future<void> processNotification(
+      NotificationEvent event, int notificationId) async {
     if (event.title?.startsWith("Compra aprobada") ?? false) {
       final amount = getAmountFromNotification(event);
       final payee = getPayeeFromNotification(event);
       final date = getDateFromNotification(event);
+      final bearerToken = await getBearerToken();
 
-      final transactionResult = createTransaction(amount, payee, date);
+      final transactionResult =
+          createTransaction(amount, payee, date, bearerToken);
       transactionResult.item1.then((response) {
         if (response.statusCode == 200 || response.statusCode == 201) {
           print("HTTP request successful");
@@ -303,6 +322,62 @@ class _NotificationsLogState extends State<NotificationsLog> {
             transactionResult.item2, jsonEncode(error));
       });
     }
+  }
+}
+
+/* Token input */
+
+class BearerTokenInput extends StatefulWidget {
+  @override
+  _BearerTokenInputState createState() => _BearerTokenInputState();
+}
+
+class _BearerTokenInputState extends State<BearerTokenInput> {
+  final _formKey = GlobalKey<FormState>();
+  String _bearerToken = '';
+  String _inputToken = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBearerToken();
+  }
+
+  Future<void> _saveBearerToken(String token) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('bearerToken', token);
+    print(prefs.getString('bearerToken'));
+  }
+
+  Future<void> _loadBearerToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _bearerToken = prefs.getString('bearerToken') ?? '';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: <Widget>[
+          TextFormField(
+            obscureText: true,
+            onSaved: (value) => _inputToken = value!,
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                _formKey.currentState?.save();
+                _saveBearerToken(_inputToken);
+              }
+            },
+            child: Text('Submit'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
