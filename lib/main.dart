@@ -14,6 +14,7 @@ import 'package:recase/recase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
+import 'configuration_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -32,9 +33,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return new MaterialApp(
-      home: NotificationsLog(),
-    );
+    return MaterialApp(initialRoute: '/', routes: {
+      '/': (context) => NotificationsLog(),
+      '/configuration': (context) => ConfigurationScreen(),
+    });
   }
 }
 
@@ -161,7 +163,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Listener Example'),
-        actions: [
+        actions: <Widget>[
           IconButton(
               onPressed: () {
                 // Create a mock notification
@@ -183,7 +185,14 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
                 onData(mockNotification);
               },
-              icon: Icon(Icons.work))
+              icon: const Icon(Icons.work)),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.pushNamed(context,
+                  '/configuration'); // Navigate to the configuration screen when the settings icon is pressed
+            },
+          ),
         ],
       ),
       body: Column(
@@ -259,16 +268,11 @@ class _NotificationsLogState extends State<NotificationsLog> {
     return place;
   }
 
-  Future<String> getBearerToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('bearerToken') ?? '';
-  }
-
-  Tuple2<Future<http.Response>, String> createTransaction(
-      int multipliedAmount, String place, String date, String bearerToken) {
+  Tuple2<Future<http.Response>, String> createTransaction(int multipliedAmount,
+      String place, String date, String bearerToken, String? accountId) {
     final requestBody = {
       "transaction": {
-        "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
+        "account_id": accountId,
         "date": date,
         "amount": multipliedAmount * -1,
         "payee_name": ReCase(place).titleCase,
@@ -294,9 +298,10 @@ class _NotificationsLogState extends State<NotificationsLog> {
       final payee = getPayeeFromNotification(event);
       final date = getDateFromNotification(event);
       final bearerToken = await getBearerToken();
+      final accountId = await loadAccount(event.packageName!);
 
       final transactionResult =
-          createTransaction(amount, payee, date, bearerToken);
+          createTransaction(amount, payee, date, bearerToken, accountId);
       transactionResult.item1.then((response) {
         if (response.statusCode == 200 || response.statusCode == 201) {
           print("HTTP request successful");
@@ -463,4 +468,9 @@ Future<int> insertTransaction(
   int id = await db!.insert('YnabTransaction', map);
 
   return id;
+}
+
+Future<String> getBearerToken() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('bearerToken') ?? '';
 }
