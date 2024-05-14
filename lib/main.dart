@@ -166,8 +166,9 @@ class _NotificationsLogState extends State<NotificationsLog> {
               onPressed: () {
                 // Create a mock notification
                 NotificationEvent mockNotification = newEvent({
-                  "title": 'Compra aprobada',
-                  "text": 'Compraste en AMAZON con tu tarjeta por \$500.00',
+                  "title": 'Compra aprobada por \$155.00',
+                  "text":
+                      'Compraste en ALTURA PADEL CLUB con tu tarjeta por \$155.00',
                   "package_name": "com.nu.production",
                   "channelId": 'Mock Channel',
                   "flags": 0,
@@ -236,7 +237,6 @@ class _NotificationsLogState extends State<NotificationsLog> {
     if (match != null) {
       final amount = double.parse(match.group(1) ?? ''); // Convert to double
       multipliedAmount = (amount * 1000).toInt(); // Multiply by 100
-      print('Extracted amount: $amount, Multiplied amount: $multipliedAmount');
     }
     return multipliedAmount;
   }
@@ -245,12 +245,11 @@ class _NotificationsLogState extends State<NotificationsLog> {
     final timestamp = event.timestamp;
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp!);
     final formattedDate = date.toIso8601String();
-    print('Extracted date: $formattedDate');
     return formattedDate;
   }
 
   String getPayeeFromNotification(NotificationEvent event) {
-    final RegExp placeRegex = RegExp(r'Compraste en ([A-Z]+) con tu tarjeta');
+    final RegExp placeRegex = RegExp(r'Compraste en ([A-Z\s]+) con tu tarjeta');
     final placeMatch = placeRegex.firstMatch(event.text ?? '');
     var place = '';
     if (placeMatch != null) {
@@ -271,9 +270,9 @@ class _NotificationsLogState extends State<NotificationsLog> {
       "transaction": {
         "account_id": "41821ce0-c429-4b95-84be-6c26c97a94bd",
         "date": date,
-        "amount": multipliedAmount,
+        "amount": multipliedAmount * -1,
         "payee_name": ReCase(place).titleCase,
-        "memo": "automatically added"
+        "memo": "Added automagically"
       }
     };
 
