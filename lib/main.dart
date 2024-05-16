@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:io' as io;
 import 'dart:isolate';
 import 'dart:ui';
@@ -15,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 import 'configuration_screen.dart';
+import 'globals.dart' as global;
 
 void main() {
   runApp(MyApp());
@@ -48,7 +48,8 @@ class NotificationsLog extends StatefulWidget {
 class _NotificationsLogState extends State<NotificationsLog> {
   List<NotificationEvent> _log = [];
   List<NotificationEvent> _processableNotifications = [];
-  List<String> _processablePackages = ["com.nu.production"];
+  final List<String> _processablePackages =
+      global.packages.map((package) => package['packageName']!).toList();
   bool started = false;
   bool _loading = false;
 
@@ -96,9 +97,6 @@ class _NotificationsLogState extends State<NotificationsLog> {
     final id = await insertNotification(event, shouldProcess);
     print("INSERTED NOTIFICATION ID $id");
 
-    var docDirectory = await getApplicationDocumentsDirectory();
-    print(docDirectory);
-
     if (shouldProcess) {
       _processableNotifications.add(event);
 
@@ -132,7 +130,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
     if (!isRunning) {
       await NotificationsListener.startService(
-          foreground: false,
+          foreground: true,
           title: "Listener Running",
           description: "Welcome to having me");
     }
@@ -166,12 +164,28 @@ class _NotificationsLogState extends State<NotificationsLog> {
         actions: <Widget>[
           IconButton(
               onPressed: () {
-                // Create a mock notification
-                NotificationEvent mockNotification = newEvent({
+                /* Nu */
+                /* NotificationEvent mockNotification = newEvent({
                   "title": 'Compra aprobada por \$155.00',
                   "text":
                       'Compraste en ALTURA PADEL CLUB con tu tarjeta por \$155.00',
                   "package_name": "com.nu.production",
+                  "channelId": 'Mock Channel',
+                  "flags": 0,
+                  "canTap": true,
+                  "uid": 10168,
+                  "id": 123,
+                  "isGroup": false,
+                  "key": "0|com.google.android.as|123|null|10168",
+                  "timestamp": 1715641845543,
+                  "hasLargeIcon": false
+                }); */
+
+                /* BBVA */
+                NotificationEvent mockNotification = newEvent({
+                  "title": 'Compra en',
+                  "text": 'COMPRA TDC EN JAPAC MU \$276.00 15 mayo 02:19h',
+                  "package_name": "com.bancomer.mbanking",
                   "channelId": 'Mock Channel',
                   "flags": 0,
                   "canTap": true,
@@ -240,7 +254,10 @@ class _NotificationsLogState extends State<NotificationsLog> {
   }
 
   int getAmountFromNotification(NotificationEvent event) {
-    final RegExp regex = RegExp(r'\$([\d,]+(\.\d{1,2})?)');
+    final String? regexSource = global.packages.firstWhere((package) =>
+        package['packageName'] == event.packageName)['amountRegex'];
+    final RegExp regex = RegExp(regexSource!, caseSensitive: false);
+
     final match = regex.firstMatch(event.text ?? '');
     var multipliedAmount = 0;
     if (match != null) {
@@ -258,8 +275,11 @@ class _NotificationsLogState extends State<NotificationsLog> {
   }
 
   String getPayeeFromNotification(NotificationEvent event) {
-    final RegExp placeRegex = RegExp(r'Compraste en ([A-Z\s]+) con tu tarjeta');
-    final placeMatch = placeRegex.firstMatch(event.text ?? '');
+    final String? regexSource = global.packages.firstWhere(
+        (package) => package['packageName'] == event.packageName)['payeeRegex'];
+    final RegExp regex = RegExp(regexSource!, caseSensitive: false);
+
+    final placeMatch = regex.firstMatch(event.text ?? '');
     var place = '';
     if (placeMatch != null) {
       place = placeMatch.group(1) ?? '';
@@ -293,7 +313,12 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
   Future<void> processNotification(
       NotificationEvent event, int notificationId) async {
-    if (event.title?.startsWith("Compra aprobada") ?? false) {
+    final String? regexSource = global.packages.firstWhere((package) =>
+        package['packageName'] == event.packageName)['chargeEventRegex'];
+    final RegExp regex = RegExp(regexSource!, caseSensitive: false);
+    final match = regex.firstMatch(event.title ?? '');
+
+    if (match != null) {
       final amount = getAmountFromNotification(event);
       final payee = getPayeeFromNotification(event);
       final date = getDateFromNotification(event);
@@ -354,9 +379,11 @@ class _BearerTokenInputState extends State<BearerTokenInput> {
   }
 
   Future<void> _loadBearerToken() async {
+    print("Loading bearer token");
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _bearerToken = prefs.getString('bearerToken') ?? '';
+      print(_bearerToken);
     });
   }
 
@@ -367,6 +394,7 @@ class _BearerTokenInputState extends State<BearerTokenInput> {
       child: Column(
         children: <Widget>[
           TextFormField(
+            initialValue: _bearerToken,
             obscureText: true,
             onSaved: (value) => _inputToken = value!,
           ),

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:notifications_listener/main.dart' as main;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'globals.dart' as globals;
 
 class ConfigurationScreen extends StatefulWidget {
   @override
@@ -10,10 +11,7 @@ class ConfigurationScreen extends StatefulWidget {
 }
 
 class _ConfigurationScreenState extends State<ConfigurationScreen> {
-  List<Map<String, String>> packages = [
-    {'packageName': 'com.nu.production', 'displayName': 'Nu'},
-    {'packageName': 'com.bbva.production', 'displayName': 'BBVA'},
-  ];
+  final packages = globals.packages;
 
   Map<String, String?> selectedAccounts = {};
   Future<List<Map<String, String>>>? accountsFuture;
@@ -33,8 +31,6 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print("***********************");
-    print(selectedAccounts);
     return Scaffold(
       appBar: AppBar(
         title: Text('Configuration'),
