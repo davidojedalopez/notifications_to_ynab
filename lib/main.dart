@@ -239,8 +239,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
                 },
               ),
             ),
-          ),
-          BearerTokenInput(),
+          )
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -351,65 +350,6 @@ class _NotificationsLogState extends State<NotificationsLog> {
             transactionResult.item2, jsonEncode(error));
       });
     }
-  }
-}
-
-/* Token input */
-
-class BearerTokenInput extends StatefulWidget {
-  @override
-  _BearerTokenInputState createState() => _BearerTokenInputState();
-}
-
-class _BearerTokenInputState extends State<BearerTokenInput> {
-  final _formKey = GlobalKey<FormState>();
-  String _bearerToken = '';
-  String _inputToken = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBearerToken();
-  }
-
-  Future<void> _saveBearerToken(String token) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('bearerToken', token);
-    print(prefs.getString('bearerToken'));
-  }
-
-  Future<void> _loadBearerToken() async {
-    print("Loading bearer token");
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _bearerToken = prefs.getString('bearerToken') ?? '';
-      print(_bearerToken);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: <Widget>[
-          TextFormField(
-            initialValue: _bearerToken,
-            obscureText: true,
-            onSaved: (value) => _inputToken = value!,
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                _formKey.currentState?.save();
-                _saveBearerToken(_inputToken);
-              }
-            },
-            child: Text('Submit'),
-          ),
-        ],
-      ),
-    );
   }
 }
 

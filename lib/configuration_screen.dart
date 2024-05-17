@@ -35,44 +35,52 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
       appBar: AppBar(
         title: Text('Configuration'),
       ),
-      body: ListView.builder(
-        itemCount: packages.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(packages[index]['displayName']!),
-            trailing: FutureBuilder<List<Map<String, String>>>(
-              future: accountsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return DropdownButton<String>(
-                    value: selectedAccounts[packages[index]['packageName']],
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedAccounts[packages[index]['packageName']!] =
-                            newValue;
-                      });
-                      if (newValue != null) {
-                        storeAccount(packages[index]['packageName']!, newValue);
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            child: ListView.builder(
+              itemCount: packages.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(packages[index]['displayName']!),
+                  trailing: FutureBuilder<List<Map<String, String>>>(
+                    future: accountsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return DropdownButton<String>(
+                          value:
+                              selectedAccounts[packages[index]['packageName']],
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              selectedAccounts[packages[index]
+                                  ['packageName']!] = newValue;
+                            });
+                            if (newValue != null) {
+                              storeAccount(
+                                  packages[index]['packageName']!, newValue);
+                            }
+                          },
+                          items: snapshot.data!
+                              .map<DropdownMenuItem<String>>((account) {
+                            return DropdownMenuItem<String>(
+                              value: account['id'],
+                              child: Text(account['name']!),
+                            );
+                          }).toList(),
+                        );
+                      } else if (snapshot.hasError) {
+                        return Text('${snapshot.error}');
                       }
+                      // By default, show a loading spinner.
+                      return CircularProgressIndicator();
                     },
-                    items:
-                        snapshot.data!.map<DropdownMenuItem<String>>((account) {
-                      return DropdownMenuItem<String>(
-                        value: account['id'],
-                        child: Text(account['name']!),
-                      );
-                    }).toList(),
-                  );
-                } else if (snapshot.hasError) {
-                  return Text('${snapshot.error}');
-                }
-
-                // By default, show a loading spinner.
-                return CircularProgressIndicator();
+                  ),
+                );
               },
             ),
-          );
-        },
+          ),
+          BearerTokenInput(),
+        ],
       ),
     );
   }
@@ -111,4 +119,66 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
 Future<String?> loadAccount(String packageName) async {
   final prefs = await SharedPreferences.getInstance();
   return prefs.getString(packageName);
+}
+
+/* Token input */
+
+class BearerTokenInput extends StatefulWidget {
+  @override
+  _BearerTokenInputState createState() => _BearerTokenInputState();
+}
+
+class _BearerTokenInputState extends State<BearerTokenInput> {
+  final _formKey = GlobalKey<FormState>();
+  String _bearerToken = '';
+  String _inputToken = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBearerToken();
+  }
+
+  Future<void> _saveBearerToken(String token) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('bearerToken', token);
+    print(prefs.getString('bearerToken'));
+  }
+
+  Future<void> _loadBearerToken() async {
+    print("Loading bearer token");
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _bearerToken = prefs.getString('bearerToken') ?? '';
+      print(_bearerToken);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: <Widget>[
+          TextFormField(
+            initialValue: _bearerToken,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'YNAB personal access token',
+            ),
+            onSaved: (value) => _inputToken = value!,
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                _formKey.currentState?.save();
+                _saveBearerToken(_inputToken);
+              }
+            },
+            child: Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
 }
