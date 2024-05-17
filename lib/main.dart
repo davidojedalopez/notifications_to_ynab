@@ -1,4 +1,3 @@
-import 'dart:io' as io;
 import 'dart:isolate';
 import 'dart:ui';
 import 'dart:convert';
@@ -14,10 +13,12 @@ import 'configuration_screen.dart';
 import 'globals.dart' as global;
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
   @override
   _MyAppState createState() => _MyAppState();
 }
@@ -56,6 +57,9 @@ class _NotificationsLogState extends State<NotificationsLog> {
   void initState() {
     initPlatformState();
     super.initState();
+    if (!started) {
+      startListening();
+    }
   }
 
   // we must use static method, to handle in background
@@ -91,34 +95,26 @@ class _NotificationsLogState extends State<NotificationsLog> {
   void onData(NotificationEvent event) async {
     bool shouldProcess = shouldProcessNotification(event);
 
-    final id = await insertNotification(event, shouldProcess);
-    print("INSERTED NOTIFICATION ID $id");
-
     if (shouldProcess) {
       _processableNotifications.add(event);
 
-      processNotification(event, id);
+      processNotification(event);
     }
 
     setState(() {
       _log.add(event);
     });
-
-    print("**************");
-    print(event.toString());
   }
 
   bool shouldProcessNotification(NotificationEvent event) =>
       _processablePackages.contains(event.packageName);
 
   void startListening() async {
-    print("start listening");
     setState(() {
       _loading = true;
     });
     var hasPermission = (await NotificationsListener.hasPermission) ?? false;
     if (!hasPermission) {
-      print("no permission, so open settings");
       NotificationsListener.openPermissionSettings();
       return;
     }
@@ -127,9 +123,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
     if (!isRunning) {
       await NotificationsListener.startService(
-          foreground: true,
-          title: "Listener Running",
-          description: "Welcome to having me");
+          foreground: true, title: "Listener running", description: "Yei!");
     }
 
     setState(() {
@@ -157,12 +151,12 @@ class _NotificationsLogState extends State<NotificationsLog> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Listener Example'),
+        title: Text('Notifications listener'),
         actions: <Widget>[
-          IconButton(
+          /* IconButton(
               onPressed: () {
                 /* Nu */
-                /* NotificationEvent mockNotification = newEvent({
+                NotificationEvent mockNotification = newEvent({
                   "title": 'Compra aprobada por \$155.00',
                   "text":
                       'Compraste en ALTURA PADEL CLUB con tu tarjeta por \$155.00',
@@ -176,10 +170,10 @@ class _NotificationsLogState extends State<NotificationsLog> {
                   "key": "0|com.google.android.as|123|null|10168",
                   "timestamp": 1715641845543,
                   "hasLargeIcon": false
-                }); */
+                });
 
                 /* BBVA */
-                NotificationEvent mockNotification = newEvent({
+                /* NotificationEvent mockNotification = newEvent({
                   "title": 'Compra en',
                   "text": 'COMPRA TDC EN JAPAC MU \$276.00 15 mayo 02:19h',
                   "package_name": "com.bancomer.mbanking",
@@ -192,22 +186,41 @@ class _NotificationsLogState extends State<NotificationsLog> {
                   "key": "0|com.google.android.as|123|null|10168",
                   "timestamp": 1715641845543,
                   "hasLargeIcon": false
-                });
+                }); */
 
                 onData(mockNotification);
               },
-              icon: const Icon(Icons.work)),
+              icon: const Icon(Icons.work)) ,*/
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              Navigator.pushNamed(context,
-                  '/configuration'); // Navigate to the configuration screen when the settings icon is pressed
+              Navigator.pushNamed(context, '/configuration');
             },
           ),
         ],
       ),
       body: Column(
         children: [
+          Container(
+            margin: const EdgeInsets.all(30.0),
+            child: Text(
+              'This app listens to all notifications, but only processes the ones from the following packages: ${_processablePackages.join(", ")}',
+              style: TextStyle(fontSize: 16),
+              textAlign: TextAlign.left,
+            ),
+          ),
+          Column(
+            children: <Widget>[
+              Container(
+                margin: const EdgeInsets.all(30.0),
+                child: Text(
+                  'Configure your YNAB details in the settings screen (top-right corner)',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.left,
+                ),
+              ),
+            ],
+          ),
           Expanded(
             child: Center(
               child: ListView.builder(
@@ -239,12 +252,22 @@ class _NotificationsLogState extends State<NotificationsLog> {
           )
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: started ? stopListening : startListening,
-        tooltip: 'Start/Stop sensing',
-        child: _loading
-            ? Icon(Icons.close)
-            : (started ? Icon(Icons.stop) : Icon(Icons.play_arrow)),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          FloatingActionButton(
+            onPressed: started ? stopListening : startListening,
+            tooltip: 'Start/Stop sensing',
+            child: _loading
+                ? Icon(Icons.close)
+                : (started ? Icon(Icons.stop) : Icon(Icons.play_arrow)),
+          ),
+          SizedBox(height: 10),
+          Text(
+            started && !_loading ? 'Stop Listening' : 'Start Listening',
+            style: TextStyle(fontSize: 16),
+          ),
+        ],
       ),
     );
   }
@@ -307,8 +330,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
         jsonEncode(requestBody));
   }
 
-  Future<void> processNotification(
-      NotificationEvent event, int notificationId) async {
+  Future<void> processNotification(NotificationEvent event) async {
     final String? regexSource = global.packages.firstWhere((package) =>
         package['packageName'] == event.packageName)['chargeEventRegex'];
     final RegExp regex = RegExp(regexSource!, caseSensitive: false);
