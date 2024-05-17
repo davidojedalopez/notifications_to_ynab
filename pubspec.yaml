@@ -1,5 +1,5 @@
-name: notifications_listener
-description: "A new Flutter project."
+name: notifications_to_ynab
+description: "Listen to notifications and create transactions in YNAB"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev

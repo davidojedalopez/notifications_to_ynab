@@ -151,7 +151,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications listener'),
+        title: Text('Notifications => YNAB'),
         actions: <Widget>[
           /* IconButton(
               onPressed: () {
@@ -213,7 +213,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
             children: <Widget>[
               Container(
                 margin: const EdgeInsets.all(30.0),
-                child: Text(
+                child: const Text(
                   'Configure your YNAB details in the settings screen (top-right corner)',
                   style: TextStyle(fontSize: 16),
                   textAlign: TextAlign.left,
