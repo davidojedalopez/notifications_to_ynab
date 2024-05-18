@@ -57,9 +57,6 @@ class _NotificationsLogState extends State<NotificationsLog> {
   void initState() {
     initPlatformState();
     super.initState();
-    if (!started) {
-      startListening();
-    }
   }
 
   // we must use static method, to handle in background
@@ -123,7 +120,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
     if (!isRunning) {
       await NotificationsListener.startService(
-          foreground: true, title: "Listener running", description: "Yei!");
+          title: "Listener running", description: "Yei!");
     }
 
     setState(() {
@@ -156,7 +153,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
           /* IconButton(
               onPressed: () {
                 /* Nu */
-                NotificationEvent mockNotification = newEvent({
+                /* NotificationEvent mockNotification = newEvent({
                   "title": 'Compra aprobada por \$155.00',
                   "text":
                       'Compraste en ALTURA PADEL CLUB con tu tarjeta por \$155.00',
@@ -170,7 +167,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
                   "key": "0|com.google.android.as|123|null|10168",
                   "timestamp": 1715641845543,
                   "hasLargeIcon": false
-                });
+                }); */
 
                 /* BBVA */
                 /* NotificationEvent mockNotification = newEvent({
@@ -190,7 +187,7 @@ class _NotificationsLogState extends State<NotificationsLog> {
 
                 onData(mockNotification);
               },
-              icon: const Icon(Icons.work)) ,*/
+              icon: const Icon(Icons.work)), */
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
